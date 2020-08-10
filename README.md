@@ -1,68 +1,188 @@
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+# react 多页面模板
 
-## Available Scripts
+## 运行
 
-In the project directory, you can run:
+```
+  npm start
+```
 
-### `npm start`
+## 打包
 
-Runs the app in the development mode.<br />
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+```
+  npm build
+```
 
-The page will reload if you make edits.<br />
-You will also see any lint errors in the console.
+## 描述
 
-### `npm test`
+### 版本
 
-Launches the test runner in the interactive watch mode.<br />
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+    create-react-app 版本 3.3.0
 
-### `npm run build`
+### webpack 配置
 
-Builds the app for production to the `build` folder.<br />
-It correctly bundles React in production mode and optimizes the build for the best performance.
+1.  弹出 `webpack` 配置
 
-The build is minified and the filenames include the hashes.<br />
-Your app is ready to be deployed!
+```
+npm eject
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+2.  修改 `config/paths.js` 文件
 
-### `npm run eject`
+```
+const glob = require('glob');
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+...
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+// 获取指定路径下的入口文件
+function getEntries(globPath) {
+ const files = glob.sync(globPath),
+   entries = {};
+ files.forEach(function(filepath) {
+     const split = filepath.split('/');
+     const name = split[split.length - 2];
+     entries[name] = './' + filepath;
+ });
+ return entries;
+}
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+const entries = getEntries('src/**/index.js');
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+function getIndexJs() {
+ const indexJsList = [];
+ Object.keys(entries).forEach((name) => {
+   const indexjs = resolveModule(resolveApp, `src/${name}/index`)
+   indexJsList.push({
+     name,
+     path: indexjs
+   });
+ })
+ return indexJsList;
+}
+const indexJsList = getIndexJs()
 
-## Learn More
+...
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+module.exports = {
+  dotenv: resolveApp(".env"),
+  appPath: resolveApp("."),
+  appBuild: resolveApp("build"),
+  appPublic: resolveApp("public"),
+  appHtml: resolveApp("public/index.html"),
+  appIndexJs: indexJsList,
+  appPackageJson: resolveApp("package.json"),
+  appSrc: resolveApp("src"),
+  appTsConfig: resolveApp("tsconfig.json"),
+  appJsConfig: resolveApp("jsconfig.json"),
+  yarnLockFile: resolveApp("yarn.lock"),
+  testsSetup: resolveModule(resolveApp, "src/setupTests"),
+  proxySetup: resolveApp("src/setupProxy.js"),
+  appNodeModules: resolveApp("node_modules"),
+  publicUrlOrPath,
+  entries,
+};
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+3.  修改 `config/webpack.config.js` 文件
 
-### Code Splitting
+```
+// 配置入口
+ const entry = {}
+ paths.appIndexJs.forEach(e => {
+   entry[e.name] = [
+     isEnvDevelopment &&
+       require.resolve('react-dev-utils/webpackHotDevClient'),
+     e.path
+   ].filter(Boolean)
+ });
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/code-splitting
+...
 
-### Analyzing the Bundle Size
+return {
+   entry
+}
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size
+...
 
-### Making a Progressive Web App
+filename: isEnvProduction
+? 'static/js/[name]/[name].[contenthash:8].js'
+: isEnvDevelopment && 'static/js/[name]/[name].bundle.js',
+chunkFilename: isEnvProduction
+? 'static/js/[name]/[name].[contenthash:8].chunk.js'
+: isEnvDevelopment && 'static/js/[name]/[name].chunk.js',
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app
+...
 
-### Advanced Configuration
+plugins: [
+// Generates an `index.html` file with the <script> injected.
+...Object.keys(paths.entries).map((name) => {
+return new HtmlWebpackPlugin(
+   Object.assign(
+   {},
+   {
+       inject: true,
+       chunks: [name],
+       template: paths.appHtml,
+       filename: name + '.html',
+   },
+   isEnvProduction
+       ? {
+           minify: {
+           removeComments: true,
+           collapseWhitespace: true,
+           removeRedundantAttributes: true,
+           useShortDoctype: true,
+           removeEmptyAttributes: true,
+           removeStyleLinkTypeAttributes: true,
+           keepClosingSlash: true,
+           minifyJS: true,
+           minifyCSS: true,
+           minifyURLs: true,
+           },
+       }
+       : undefined
+   )
+)
+}),
+....
+]
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/advanced-configuration
+// 注释下面这部分
+// new ManifestPlugin({
+//   fileName: 'asset-manifest.json',
+//   publicPath: publicPath,
+//   generate: (seed, files, entrypoints) => {
+//     const manifestFiles = files.reduce((manifest, file) => {
+//       manifest[file.name] = file.path;
+//       return manifest;
+//     }, seed);
+//     const entrypointFiles = entrypoints.main.filter(
+//       fileName => !fileName.endsWith('.map')
+//     );
 
-### Deployment
+//     return {
+//       files: manifestFiles,
+//       entrypoints: entrypointFiles,
+//     };
+//   },
+// }),
+```
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/deployment
+4.  修改检测文件是否存在的代码 `scripts/build.js` `scripts/start.js`
 
-### `npm run build` fails to minify
+```
+// Warn and crash if required files are missing
+if (!checkRequiredFiles([paths.appHtml, ...paths.appIndexJs.map(e => e.path)])) {
+   process.exit(1);
+}
+```
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify
+### 页面路径
+
+```
+http://localhost:3000/home.html
+http://localhost:3000/list.html
+```
+
+### 添加页面方法
+
+复制`src`下面目录，重命名，保持目录结构
